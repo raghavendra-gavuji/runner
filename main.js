@@ -83,46 +83,14 @@ function resetGame() {
     animate(0); // Restart the animation loop
 }
 
-// Preload obstacle images
-const obstacleImages = [];
-const obstacleImageNames = [
-    'obstacle_1.png',
-    'obstacle_2.png',
-    'obstacle_3.png',
-    'obstacle_4.png',
-    'obstacle_5.png',
-    'obstacle_6.png',
-    'obstacle_7.png'
-];
-
-function preloadImages(imageNames, callback) {
-    let loadedImagesCount = 0;
-    const totalImages = imageNames.length;
-
-    imageNames.forEach((imageName, index) => {
-        const img = new Image();
-        img.src = `obstacles/${imageName}`;
-        img.onload = () => {
-            loadedImagesCount++;
-            obstacleImages[index] = img;
-            if (loadedImagesCount === totalImages && typeof callback === 'function') {
-                callback();
-            }
-        };
-    });
-}
-
-preloadImages(obstacleImageNames, () => {
-    animate(0); // Start the animation loop once images are preloaded
-});
-
 // Obstacle class
 class Obstacle {
-    constructor(position, size, baseSpeed, image) {
+    constructor(position, size, baseSpeed) {
         this.position = position;
         this.size = size;
         this.baseSpeed = baseSpeed;
-        this.image = image;
+        this.image = new Image();
+        this.image.src = `obstacles/obstacle_${Math.floor(Math.random() * 7) + 1}.png`; // Random obstacle image
     }
 
     draw(ctx) {
@@ -151,16 +119,6 @@ function getRandomDistance(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomObstacle() {
-    const index = Math.floor(Math.random() * obstacleImages.length);
-    const img = obstacleImages[index];
-    const size = {
-        width: img.width,
-        height: img.height
-    };
-    return { img, size };
-}
-
 function isCollision(player, obstacle) {
     return player.position.x < obstacle.position.x + obstacle.size.width &&
            player.position.x + player.size.width > obstacle.position.x &&
@@ -173,6 +131,7 @@ const speedIncrement = 0.0001;
 
 function animate(time) {
     if (isGameOver && player.state === 'dead') {
+        // Play dead animation
         player.update(ctx, globalSpeedFactor);
         if (player.frameIndex >= player.frames.length - 1) {
             return; // End animation when it finishes
@@ -185,6 +144,7 @@ function animate(time) {
         window.requestAnimationFrame(animate);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Draw parallax layers only if the game has started
         if (isGameStarted) {
             layers.forEach(layer => {
                 layer.update(globalSpeedFactor);
@@ -198,9 +158,10 @@ function animate(time) {
             distanceCovered += baseObstacleSpeed * globalSpeedFactor;
 
             if (distanceCovered >= nextObstacleDistance) {
-                const { img, size } = getRandomObstacle();
-                const obstaclePosition = { x: canvas.width, y: canvas.height - size.height };
-                obstacles.push(new Obstacle(obstaclePosition, size, baseObstacleSpeed, img));
+                const obstacleWidth = getRandomSize(50, 100);
+                const obstacleHeight = getRandomSize(70, 100);
+                const obstaclePosition = { x: canvas.width, y: canvas.height - obstacleHeight };
+                obstacles.push(new Obstacle(obstaclePosition, { width: obstacleWidth, height: obstacleHeight }, baseObstacleSpeed));
                 nextObstacleDistance = distanceCovered + getRandomDistance(minObstacleDistance, maxObstacleDistance);
             }
 
@@ -218,6 +179,7 @@ function animate(time) {
                 }
             });
         } else {
+            // Draw idle animation if the game hasn't started
             layers.forEach(layer => {
                 layer.draw(ctx);
             });
@@ -226,6 +188,9 @@ function animate(time) {
     }
 }
 
+animate(0);
+
+// Handle keyboard input for jumping and starting/resetting the game
 window.addEventListener("keydown", (event) => {
     if (event.code === 'KeyW' || event.code === 'ArrowUp') {
         jump();
@@ -239,5 +204,27 @@ window.addEventListener("keydown", (event) => {
         } else {
             jump();
         }
+    }
+});
+
+// Handle touch input for jumping and starting/resetting the game
+let touchStartY = 0;
+canvas.addEventListener("touchstart", (event) => {
+    const touch = event.touches[0];
+    touchStartY = touch.clientY;
+    
+    if (isGameOver) {
+        resetGame(); // Reset game on touch if game is over
+    } else if (!isGameStarted) {
+        isGameStarted = true; // Start the game on touch if not started
+        player.setState('run'); // Ensure player starts in running state
+    }
+});
+
+canvas.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches[0];
+    
+    if (touch.clientY < touchStartY) {
+        jump(); // Trigger jump if the touch end position is above the start position
     }
 });
